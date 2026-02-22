@@ -74,34 +74,31 @@ jobs:
           
           echo "Ejecutando aider basado en el comentario: $COMMENT"
           
-          # Se ejecuta aider con Gemini. Se le pasa el archivo del issue generado y restricciones específicas.
+          # Se ejecuta aider con Gemini o Claude. Se le pasa el archivo del issue generado y restricciones específicas.
           aider --model "$MODEL_NAME" \
             --read "$ISSUE_FILE" \
-            --message "El archivo adjunto $ISSUE_FILE contiene toda la especificación principal del requerimiento del issue. Tu tarea es implementar los cambios basándote exclusivamente en este archivo y en las instrucciones adicionales de este comentario: '$COMMENT'. Puedes usar comandos de GitHub CLI (gh) en la terminal para cualquier otra acción de consulta en el repositorio si lo consideras necesario. No inventes funcionalidades que no estén explícitamente solicitadas. IMPORTANTE: No te detengas hasta que hayas implementado el cambio completo de código necesario para resolver el issue de manera integral, de forma que se pueda generar el commit final correctamente." \
-            --yes --auto-commits
+            --message "You are an Expert Software Architect operating as an autonomous agent within a CI/CD pipeline (GitHub Actions). You are an unattended system: there is no human in the loop to answer questions, confirm changes, or create files.
+
+          CONTEXT INPUTS:
+          - Main requirement specification: $ISSUE_FILE
+          - Additional instructions or constraints: '$COMMENT'
+
+          STRICT EXECUTION RULES:
+          1. Closed Scope: Implement solely and exclusively what is requested in the inputs. It is strictly forbidden to invent functionalities, engage in \"gold-plating\", or modify code outside the scope of the issue, such as modifying markdown files.
+          2. Comprehensive Solution: Do not stop until the code is 100% complete. Do not use \"placeholders\" or comments like \"TODO: implement logic here\".
+          3. File Management: If the requirement calls for creating new files (e.g., to respect separation of concerns or project patterns), write them directly with their full paths and content so the system generates them.
+          4. Action Limit (No Commits): Your only responsibility is to write and modify source code in the file system. DO NOT execute, nor suggest, version control commands (such as \`git commit\` or \`git push\`), as the CI/CD pipeline will handle that afterwards.
+
+          Proceed immediately with the implementation and finish execution silently upon completion." \
+            --commit-prompt "Generate an english commit message. Always prefix the message with 'Fixes #$ISSUE_NUMBER -'. Be concise." \
+            --yes-always --auto-commits
           
-          # Puedes borrar el archivo si no quieres que quede en el commit
-          # rm "$ISSUE_FILE"
-          
-          # Verificar si Aider generó nuevos commits en el primer intento
+          # Verificar si Aider generó nuevos commits revisando contra master u origin
+          # Dado que hicimos un checkout a una rama nueva o existente, verificamos el listado de diff
           if git fetch origin main && git log origin/main..HEAD --oneline | grep -q .; then
             echo "Se encontraron nuevos commits generados por Aider. Realizando Push..."
             git push -u origin HEAD
           else
-            echo "Aider no generó commits en el primer intento. Solicitando que continúe con la implementación..."
-            
-            # Segunda ejecución de Aider solicitando que continúe
-            aider --model "$MODEL_NAME" \
-              --read "$ISSUE_FILE" \
-              --message "Continúa con la implementación basándote en el archivo adjunto $ISSUE_FILE y en el comentario '$COMMENT'. No has realizado ningún cambio aún." \
-              --yes --auto-commits
-            
-            # Verificación final
-            if git log origin/main..HEAD --oneline | grep -q .; then
-              echo "Ahora sí se encontraron nuevos commits. Realizando Push..."
-              git push -u origin HEAD
-            else
-              echo "Error: Aider no generó ningún commit ni código nuevo tras el segundo intento."
-              exit 1
-            fi
+            echo "Error: Aider no generó ningún commit ni código nuevo basado en el Issue."
+            exit 1
           fi
