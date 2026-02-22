@@ -1,0 +1,85 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>The Rick and Morty API</title>
+    <link rel="stylesheet" href="styles.css">
+    <link href="https://fonts.googleapis.com/css2?family=Creepster&family=Roboto:wght@300;400;500;700&display=swap" rel="stylesheet">
+</head>
+<body>
+    <header class="header">
+        <div class="container">
+            <h1 class="logo">The Rick and Morty API</h1>
+            <nav class="nav">
+                <a href="#characters" class="nav-link">Characters</a>
+                <a href="#locations" class="nav-link">Locations</a>
+                <a href="#episodes" class="nav-link">Episodes</a>
+            </nav>
+        </div>
+    </header>
+
+    <main class="main">
+        <section class="hero">
+            <div class="container">
+                <div class="hero-content">
+                    <h2 class="hero-title">The Rick and Morty API</h2>
+                    <p class="hero-description">
+                        The Rick and Morty API is a RESTful and GraphQL API based on the television show Rick and Morty. 
+                        You will have access to about hundreds of characters, images, locations and episodes.
+                    </p>
+                    <div class="hero-buttons">
+                        <button class="btn btn-primary" onclick="loadCharacters()">Explore Characters</button>
+                        <button class="btn btn-secondary" onclick="loadLocations()">View Locations</button>
+                        <button class="btn btn-secondary" onclick="loadEpisodes()">Browse Episodes</button>
+                    </div>
+                </div>
+                <div class="hero-image">
+                    <img src="https://rickandmortyapi.com/api/character/avatar/1.jpeg" alt="Rick Sanchez" class="hero-avatar">
+                </div>
+            </div>
+        </section>
+
+        <section class="content" id="content">
+            <div class="container">
+                <div class="filters">
+                    <input type="text" id="searchInput" placeholder="Search..." class="search-input">
+                    <select id="statusFilter" class="filter-select">
+                        <option value="">All Status</option>
+                        <option value="alive">Alive</option>
+                        <option value="dead">Dead</option>
+                        <option value="unknown">Unknown</option>
+                    </select>
+                    <select id="genderFilter" class="filter-select">
+                        <option value="">All Genders</option>
+                        <option value="male">Male</option>
+                        <option value="female">Female</option>
+                        <option value="genderless">Genderless</option>
+                        <option value="unknown">Unknown</option>
+                    </select>
+                </div>
+                
+                <div class="grid" id="grid">
+                    <!-- Content will be loaded here -->
+                </div>
+                
+                <div class="pagination" id="pagination">
+                    <!-- Pagination will be loaded here -->
+                </div>
+            </div>
+        </section>
+    </main>
+
+    <footer class="footer">
+        <div class="container">
+            <p>&copy; 2024 The Rick and Morty API. Built with vanilla JavaScript.</p>
+        </div>
+    </footer>
+
+    <div class="loading" id="loading">
+        <div class="loading-spinner"></div>
+    </div>
+
+    <script src="script.js"></script>
+</body>
+</html>
