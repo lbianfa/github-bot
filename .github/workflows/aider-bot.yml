@@ -6,8 +6,12 @@ on:
 
 jobs:
   run-aider:
-    # Solo ejecutamos si el comentario empieza con /aider
-    if: startsWith(github.event.comment.body, '/aider')
+    # Solo ejecutamos si el comentario empieza con /aider y el usuario tiene permisos (OWNER, COLLABORATOR o MEMBER)
+    if: >-
+      startsWith(github.event.comment.body, '/aider') &&
+      (github.event.comment.author_association == 'OWNER' || 
+       github.event.comment.author_association == 'COLLABORATOR' || 
+       github.event.comment.author_association == 'MEMBER')
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -52,6 +56,7 @@ jobs:
       - name: Run Aider
         env:
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           AIDER_MODEL: ${{ secrets.AIDER_MODEL }}
