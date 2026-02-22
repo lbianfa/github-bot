@@ -1,29 +1,29 @@
 # GitHub AI Agent (Gemini & Claude + Aider)
 
-Este proyecto está configurado para ejecutar un Agente de Inteligencia Artificial como un Ingeniero de Software Autónomo directamente desde GitHub Actions. Utiliza [Aider](https://aider.chat/) potenciado por modelos de lenguaje robustos (Google Gemini o Anthropic Claude) para resolver Issues y modificar el código del repositorio de forma desatendida basándose en las especificaciones dadas.
+This project is configured to run an Artificial Intelligence Agent as an Autonomous Software Engineer directly from GitHub Actions. It uses [Aider](https://aider.chat/) powered by robust language models (Google Gemini or Anthropic Claude) to resolve Issues and modify repository code unattended based on given specifications.
 
-## ¿Cómo funciona?
+## How does it work?
 
-Hemos configurado un Github Action (`.github/workflows/aider-bot.yml`) que se activa automáticamente cada vez que se crea un comentario en un Issue.
+We have configured a Github Action (`.github/workflows/aider-bot.yml`) that automatically triggers every time a comment is created on an Issue.
 
-El flujo es el siguiente:
-1. Un Administrador, Colaborador o Miembro del core escribe un comentario en un Issue **que inicie con `/aider`**. *(Por seguridad, los comentarios de usuarios externos al equipo son ignorados automáticamente).*
-2. Github Actions levanta un entorno (Ubuntu) y clona el repositorio.
-3. Se instala Python y `aider-chat`.
-4. El script hace un checkout de una nueva rama específica para el issue (ej. `aider/issue-123`).
-5. La herramienta oficial de consola de GitHub (`gh CLI`) descarga todos los requerimientos y el cuerpo principal del issue en un archivo para que la IA lo utilice como su Especificación Técnica definitiva.
-6. Aider se ejecuta con el modelo configurado actuando como "Arquitecto de Software Experto". Analiza el requerimiento, crea archivos, modifica el código fuente de forma autónoma respetando los patrones arquitectónicos y termina la ejecución de código (sin pedir confirmación humana).
-7. Finalmente, Github Actions genera un commit estructurado que vincula y cierra el issue, procediendo a hacer el *push* de vuelta a tu rama remota.
+The flow is as follows:
+1. An Administrator, Collaborator or Core Member writes a comment on an Issue **that starts with `/aider`**. *(For security, comments from users external to the team are automatically ignored).*
+2. Github Actions spins up an environment (Ubuntu) and clones the repository.
+3. Python and `aider-chat` are installed.
+4. The script checks out a new branch specific to the issue (e.g. `aider/issue-123`).
+5. GitHub's official console tool (`gh CLI`) downloads all requirements and the main body of the issue into a file for the AI to use as its definitive Technical Specification.
+6. Aider runs with the configured model acting as "Expert Software Architect". It analyzes the requirement, creates files, modifies source code autonomously respecting architectural patterns and terminates code execution (without asking for human confirmation).
+7. Finally, Github Actions generates a structured commit that links and closes the issue, proceeding to push back to your remote branch.
 
-## Configuración de Secretos Requerida
+## Required Secrets Configuration
 
-Para que este agente funcione, es obligatorio configurar las siguientes variables en los **Secrets and variables > Actions > Repository variables/secrets** de tu repositorio:
+For this agent to work, it is mandatory to configure the following variables in the **Secrets and variables > Actions > Repository variables/secrets** of your repository:
 
-- `GEMINI_API_KEY`: Tu clave de API de Google (Google AI Studio) si optas por usar Gemini.
-- `ANTHROPIC_API_KEY`: Tu clave de API de Anthropic, si optas por usar Claude.
-- `AIDER_MODEL`: *(Opcional)* Nombre exacto del modelo a utilizar. Ej: `anthropic/claude-3-5-sonnet-latest` o `gemini/gemini-1.5-pro-latest`. Si no defines nada, usará gemini-flash-latest por defecto.
+- `GEMINI_API_KEY`: Your Google API key (Google AI Studio) if you choose to use Gemini.
+- `ANTHROPIC_API_KEY`: Your Anthropic API key, if you choose to use Claude.
+- `AIDER_MODEL`: *(Optional)* Exact name of the model to use. E.g: `anthropic/claude-3-5-sonnet-latest` or `gemini/gemini-1.5-pro-latest`. If you don't define anything, it will use gemini-flash-latest by default.
 
-*(Nota: el token de GitHub `GH_TOKEN` empleado para gestionar el repo ya es inyectado de forma segura y automática por GitHub Actions, solo debes asegurarte que Action tenga permisos estándar de lectura/escritura).*
+*(Note: the GitHub token `GH_TOKEN` used to manage the repo is already injected securely and automatically by GitHub Actions, you just need to make sure Action has standard read/write permissions).*
 
-### Permisos del repositorio:
-Asegúrate de ir a `Settings > Actions > General` en tu repositorio y bajo la sección **Workflow permissions** seleccionar la opción **Read and write permissions**.
+### Repository permissions:
+Make sure to go to `Settings > Actions > General` in your repository and under the **Workflow permissions** section select the **Read and write permissions** option.
