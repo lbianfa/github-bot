@@ -1,0 +1,102 @@
+name: Aider AI Agent
+
+on:
+  issue_comment:
+    types: [created]
+
+jobs:
+  run-aider:
+    # Solo ejecutamos si el comentario empieza con /aider
+    if: startsWith(github.event.comment.body, '/aider')
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      issues: write
+      pull-requests: write
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install aider-chat
+
+      - name: Configure Git
+        run: |
+          git config --global user.name "Fabian Serna"
+          git config --global user.email "fabianserna2013@gmail.com"
+
+      - name: Create or checkout branch
+        run: |
+          # Determinar ID del issue o PR
+          ISSUE_NUMBER="${{ github.event.issue.number }}"
+          BRANCH_NAME="aider/issue-$ISSUE_NUMBER"
+          
+          # Intentar hacer checkout si la rama ya existe, si no, crearla desde main
+          git fetch origin
+          if git ls-remote --exit-code --heads origin "$BRANCH_NAME"; then
+            git checkout "$BRANCH_NAME"
+          else
+            git checkout -b "$BRANCH_NAME"
+          fi
+
+      - name: Run Aider
+        env:
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          AIDER_MODEL: ${{ secrets.AIDER_MODEL }}
+        run: |
+          COMMENT="${{ github.event.comment.body }}"
+          ISSUE_NUMBER="${{ github.event.issue.number }}"
+          ISSUE_FILE="issue_${ISSUE_NUMBER}.md"
+          
+          # Determinar modelo desde secrets o usar default
+          MODEL_NAME="${AIDER_MODEL:-gemini/gemini-flash-latest}"
+          
+          echo "Modelo seleccionado: $MODEL_NAME"
+          echo "Descargando detalles del issue..."
+          gh issue view "$ISSUE_NUMBER" > "$ISSUE_FILE"
+          
+          echo "Ejecutando aider basado en el comentario: $COMMENT"
+          
+          # Se ejecuta aider con Gemini. Se le pasa el archivo del issue generado y restricciones específicas.
+          aider --model "$MODEL_NAME" \
+            --read "$ISSUE_FILE" \
+            --message "El archivo adjunto $ISSUE_FILE contiene toda la especificación principal del requerimiento del issue. Tu tarea es implementar los cambios basándote exclusivamente en este archivo y en las instrucciones adicionales de este comentario: '$COMMENT'. Puedes usar comandos de GitHub CLI (gh) en la terminal para cualquier otra acción de consulta en el repositorio si lo consideras necesario. No inventes funcionalidades que no estén explícitamente solicitadas. IMPORTANTE: No te detengas hasta que hayas implementado el cambio completo de código necesario para resolver el issue de manera integral, de forma que se pueda generar el commit final correctamente." \
+            --yes --auto-commits
+          
+          # Puedes borrar el archivo si no quieres que quede en el commit
+          # rm "$ISSUE_FILE"
+          
+          # Verificar si Aider generó nuevos commits en el primer intento
+          if git fetch origin main && git log origin/main..HEAD --oneline | grep -q .; then
+            echo "Se encontraron nuevos commits generados por Aider. Realizando Push..."
+            git push -u origin HEAD
+          else
+            echo "Aider no generó commits en el primer intento. Solicitando que continúe con la implementación..."
+            
+            # Segunda ejecución de Aider solicitando que continúe
+            aider --model "$MODEL_NAME" \
+              --read "$ISSUE_FILE" \
+              --message "Continúa con la implementación basándote en el archivo adjunto $ISSUE_FILE y en el comentario '$COMMENT'. No has realizado ningún cambio aún." \
+              --yes --auto-commits
+            
+            # Verificación final
+            if git log origin/main..HEAD --oneline | grep -q .; then
+              echo "Ahora sí se encontraron nuevos commits. Realizando Push..."
+              git push -u origin HEAD
+            else
+              echo "Error: Aider no generó ningún commit ni código nuevo tras el segundo intento."
+              exit 1
+            fi
+          fi
