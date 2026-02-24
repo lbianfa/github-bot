@@ -1,0 +1,86 @@
+stages:
+  - aider
+
+variables:
+  GIT_DEPTH: 0
+
+aider-ai-agent:
+  stage: aider
+  image: python:3.11
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event" && $CI_MERGE_REQUEST_EVENT_TYPE == "comment"
+      when: never
+    - if: $CI_PIPELINE_SOURCE == "issue_comment" && $GITLAB_USER_LOGIN && $CI_COMMENT_BODY =~ /^\/aider/
+      when: on_success
+    - when: never
+  before_script:
+    - python -m pip install --upgrade pip
+    - pip install aider-chat
+    - apt-get update && apt-get install -y git curl
+    - curl -fsSL https://cli.github.com/packages/githubcli-archive-keyring.gpg | dd of=/usr/share/keyrings/githubcli-archive-keyring.gpg
+    - echo "deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/githubcli-archive-keyring.gpg] https://cli.github.com/packages stable main" | tee /etc/apt/sources.list.d/github-cli.list > /dev/null
+    - apt-get update && apt-get install -y gh
+    - git config --global user.name "Fabian Serna"
+    - git config --global user.email "fabianserna2013@gmail.com"
+  script:
+    - |
+      # Determinar ID del issue
+      ISSUE_NUMBER="$CI_ISSUE_IID"
+      BRANCH_NAME="aider/issue-$ISSUE_NUMBER"
+      
+      # Intentar hacer checkout si la rama ya existe, si no, crearla desde main
+      git fetch origin
+      if git ls-remote --exit-code --heads origin "$BRANCH_NAME"; then
+        git checkout "$BRANCH_NAME"
+      else
+        git checkout -b "$BRANCH_NAME"
+      fi
+      
+      COMMENT="$CI_COMMENT_BODY"
+      ISSUE_FILE="issue_${ISSUE_NUMBER}.md"
+      
+      # Determinar modelo desde variables o usar default
+      MODEL_NAME="${AIDER_MODEL:-gemini/gemini-flash-latest}"
+      
+      echo "Modelo seleccionado: $MODEL_NAME"
+      echo "Descargando detalles del issue..."
+      
+      # Usar GitLab API para obtener detalles del issue
+      curl --header "PRIVATE-TOKEN: $GITLAB_TOKEN" \
+        "$CI_API_V4_URL/projects/$CI_PROJECT_ID/issues/$ISSUE_NUMBER" | \
+        jq -r '"title:\t" + .title + "\nstate:\t" + .state + "\nauthor:\t" + .author.username + "\nlabels:\t" + (.labels | join(",")) + "\ncomments:\t" + (.user_notes_count | tostring) + "\nassignees:\t" + (.assignees | map(.username) | join(",")) + "\nprojects:\t\nmilestone:\t" + (if .milestone then .milestone.title else "" end) + "\nnumber:\t" + (.iid | tostring) + "\n--\n" + .description' > "$ISSUE_FILE"
+      
+      echo "Ejecutando aider basado en el comentario: $COMMENT"
+      
+      # Se ejecuta aider con Gemini o Claude. Se le pasa el archivo del issue generado y restricciones específicas.
+      aider --model "$MODEL_NAME" \
+        --read "$ISSUE_FILE" \
+        --message "You are an Expert Software Architect operating as an autonomous agent within a CI/CD pipeline (GitLab CI). You are an unattended system: there is no human in the loop to answer questions, confirm changes, or create files.
+
+      CONTEXT INPUTS:
+      - Main requirement specification: $ISSUE_FILE
+      - Additional instructions or constraints: '$COMMENT'
+
+      STRICT EXECUTION RULES:
+      1. Closed Scope: Implement solely and exclusively what is requested in the inputs. It is strictly forbidden to invent functionalities, engage in \"gold-plating\", or modify code outside the scope of the issue, such as modifying markdown files.
+      2. Comprehensive Solution: Do not stop until the code is 100% complete. Do not use \"placeholders\" or comments like \"TODO: implement logic here\".
+      3. File Management: If the requirement calls for creating new files (e.g., to respect separation of concerns or project patterns), write them directly with their full paths and content so the system generates them.
+      4. Action Limit (No Commits): Your ONLY responsibility is to provide the raw code changes to the files. Under no circumstances should you generate git commits, output commit hashes, or execute/suggest version control commands. Aider will automatically commit all your file changes via the \`--auto-commits\` flag.
+
+      Proceed immediately with the implementation and finish execution silently upon completion." \
+        --commit-prompt "Generate a conventional commit message. The first line must be a concise title starting with 'Fixes #$ISSUE_NUMBER - '. Put all additional context and detailed explanation in the commit body (separated by a blank line)." \
+        --yes-always --auto-commits
+      
+      # Verificar si Aider generó nuevos commits revisando contra main u origin
+      if git fetch origin main && git log origin/main..HEAD --oneline | grep -q .; then
+        echo "Se encontraron nuevos commits generados por Aider. Realizando Push..."
+        git push -u origin HEAD
+      else
+        echo "Error: Aider no generó ningún commit ni código nuevo basado en el Issue."
+        exit 1
+      fi
+  variables:
+    GEMINI_API_KEY: $GEMINI_API_KEY
+    ANTHROPIC_API_KEY: $ANTHROPIC_API_KEY
+    GITLAB_TOKEN: $GITLAB_TOKEN
+    AIDER_MODEL: $AIDER_MODEL
